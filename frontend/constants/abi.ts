@@ -11,5 +11,7 @@ export const MED_RELIEF_ABI = [
   "function DEFAULT_ADMIN_ROLE() external view returns (bytes32)",
   "function VALIDATOR_ROLE() external view returns (bytes32)",
   "event Deposit(address indexed user, uint256 amount)",
-  "event RequestCreated(uint256 indexed requestId, address indexed requester, uint256 amount, string reason)"
+  "event RequestCreated(uint256 indexed requestId, address indexed requester, uint256 amount, string reason)",
+  "event RoleGranted(bytes32 indexed role, address indexed account, address indexed sender)",
+  "event RoleRevoked(bytes32 indexed role, address indexed account, address indexed sender)"
 ];
