@@ -64,3 +64,6 @@ $ forge --help
 $ anvil --help
 $ cast --help
 ```
+
+### MedRelief deployed at: 0x81AeC0B87CAa631365B0AC0B628A84afdf6f1Fe9
+### Admin/Validator set to: 0x9cfBDFf9f0Edd7D3E0fdA5072DB483c41Ec11bd2
