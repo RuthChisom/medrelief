@@ -8,14 +8,15 @@ export default function Home() {
   const {
     account, isConnected, connect, disconnect,
     deposit, createRequest, approveRequest, executeRequest,
-    addValidator, removeValidator, checkIsAdmin, getReadOnlyContract,
+    addValidator, removeValidator, checkIsAdmin, checkIsValidator, getReadOnlyContract,
   } = useMedRelief();
 
   const [requests, setRequests]   = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'pending' | 'executed'>('pending');
   const [formData, setFormData]   = useState({ deposit: '', reqAmount: '', reqReason: '', validatorAddress: '' });
   const [error, setError]         = useState<string | null>(null);
-  const [isAdmin, setIsAdmin]     = useState(false);
+  const [isAdmin, setIsAdmin]         = useState(false);
+  const [isValidator, setIsValidator] = useState(false);
 
   const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setFormData(prev => ({ ...prev, [key]: e.target.value }));
@@ -49,8 +50,13 @@ export default function Home() {
   useEffect(() => { fetchRequests(); }, []);
 
   useEffect(() => {
-    if (isConnected && account) checkIsAdmin(account).then(setIsAdmin);
-    else setIsAdmin(false);
+    if (isConnected && account) {
+      checkIsAdmin(account).then(setIsAdmin);
+      checkIsValidator(account).then(setIsValidator);
+    } else {
+      setIsAdmin(false);
+      setIsValidator(false);
+    }
   }, [isConnected, account]);
 
   const pending  = requests.filter(r => !r.executed);
@@ -205,10 +211,12 @@ export default function Home() {
 
                 {isConnected && !req.executed && (
                   <div className="request-actions">
-                    <button className="btn-ghost btn-sm"
-                      onClick={() => handleAction(() => approveRequest(req.id))}>
-                      👍 Approve
-                    </button>
+                    {isValidator && (
+                      <button className="btn-ghost btn-sm"
+                        onClick={() => handleAction(() => approveRequest(req.id))}>
+                        👍 Approve
+                      </button>
+                    )}
                     <button className="btn-primary btn-sm"
                       onClick={() => handleAction(() => executeRequest(req.id))}>
                       🚀 Execute

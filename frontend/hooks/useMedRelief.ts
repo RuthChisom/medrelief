@@ -85,18 +85,29 @@ export function useMedRelief() {
     }
   };
 
-  return { 
-    account, 
-    isConnected, 
-    connect, 
+  const checkIsValidator = async (userAddress: string) => {
+    try {
+      const contract = await getReadOnlyContract();
+      const validatorRole = await contract.VALIDATOR_ROLE();
+      return await contract.hasRole(validatorRole, userAddress);
+    } catch (e) {
+      return false;
+    }
+  };
+
+  return {
+    account,
+    isConnected,
+    connect,
     disconnect: disconnectWallet,
-    deposit, 
-    createRequest, 
-    approveRequest, 
-    executeRequest, 
-    addValidator, 
-    removeValidator, 
-    checkIsAdmin, 
+    deposit,
+    createRequest,
+    approveRequest,
+    executeRequest,
+    addValidator,
+    removeValidator,
+    checkIsAdmin,
+    checkIsValidator,
     getContract,
     getReadOnlyContract
   };
