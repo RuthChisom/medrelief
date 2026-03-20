@@ -23,9 +23,29 @@ export default function Home() {
   const [isValidator, setIsValidator] = useState(false);
   const [poolBalance, setPoolBalance] = useState<string | null>(null);
   const [validators, setValidators]   = useState<string[]>([]);
+  const [errors, setErrors]           = useState({ deposit: '', reqAmount: '', reqReason: '', validatorAddress: '' });
 
-  const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
+  const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({ ...prev, [key]: e.target.value }));
+    if (errors[key as keyof typeof errors]) setErrors(prev => ({ ...prev, [key]: '' }));
+  };
+
+  // Prevent '-', '+', 'e', 'E' in number inputs
+  const blockNegativeKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (['-', '+', 'e', 'E'].includes(e.key)) e.preventDefault();
+  };
+
+  const validateAmount = (val: string) => {
+    if (!val.trim()) return 'Amount is required.';
+    if (isNaN(Number(val)) || Number(val) <= 0) return 'Enter a valid amount greater than 0.';
+    return '';
+  };
+  const validateReason  = (val: string) => val.trim() ? '' : 'Reason is required.';
+  const validateAddress = (val: string) => {
+    if (!val.trim()) return 'Address is required.';
+    if (!ethers.isAddress(val)) return 'Enter a valid Ethereum address.';
+    return '';
+  };
 
   const fetchPoolBalance = async () => {
     try {
@@ -178,12 +198,18 @@ export default function Home() {
               <div className="field">
                 <label>Validator Address</label>
                 <input placeholder="0x…" value={formData.validatorAddress} onChange={set('validatorAddress')} />
+                {errors.validatorAddress && <span className="field-error">{errors.validatorAddress}</span>}
               </div>
               <button className="btn-primary"
-                onClick={() => handleAction(
-                  async () => { await addValidator(formData.validatorAddress); await fetchValidators(); },
-                  'Validator added successfully.'
-                )}>
+                disabled={!formData.validatorAddress.trim()}
+                onClick={() => {
+                  const err = validateAddress(formData.validatorAddress);
+                  if (err) { setErrors(prev => ({ ...prev, validatorAddress: err })); return; }
+                  handleAction(
+                    async () => { await addValidator(formData.validatorAddress); await fetchValidators(); },
+                    'Validator added successfully.'
+                  );
+                }}>
                 Add
               </button>
             </div>
@@ -220,13 +246,19 @@ export default function Home() {
               <p className="card-title">Deposit Funds</p>
               <div className="field">
                 <label>Amount (ETH)</label>
-                <input type="number" placeholder="0.0" value={formData.deposit} onChange={set('deposit')} />
+                <input
+                  type="number" placeholder="0.0" min="0"
+                  value={formData.deposit} onChange={set('deposit')} onKeyDown={blockNegativeKey}
+                />
+                {errors.deposit && <span className="field-error">{errors.deposit}</span>}
               </div>
               <button className="btn-primary" style={{ width: '100%' }}
-                onClick={() => handleAction(
-                  () => deposit(formData.deposit),
-                  `Successfully deposited ${formData.deposit} ETH.`
-                )}>
+                disabled={!formData.deposit.trim()}
+                onClick={() => {
+                  const err = validateAmount(formData.deposit);
+                  if (err) { setErrors(prev => ({ ...prev, deposit: err })); return; }
+                  handleAction(() => deposit(formData.deposit), `Successfully deposited ${formData.deposit} ETH.`);
+                }}>
                 Send ETH
               </button>
             </div>
@@ -236,17 +268,25 @@ export default function Home() {
               <p className="card-title">Create Request</p>
               <div className="field">
                 <label>Amount (ETH)</label>
-                <input type="number" placeholder="0.0" value={formData.reqAmount} onChange={set('reqAmount')} />
+                <input
+                  type="number" placeholder="0.0" min="0"
+                  value={formData.reqAmount} onChange={set('reqAmount')} onKeyDown={blockNegativeKey}
+                />
+                {errors.reqAmount && <span className="field-error">{errors.reqAmount}</span>}
               </div>
               <div className="field">
                 <label>Reason</label>
                 <input placeholder="Brief description" value={formData.reqReason} onChange={set('reqReason')} />
+                {errors.reqReason && <span className="field-error">{errors.reqReason}</span>}
               </div>
               <button className="btn-secondary" style={{ width: '100%' }}
-                onClick={() => handleAction(
-                  () => createRequest(formData.reqAmount, formData.reqReason),
-                  'Emergency request submitted successfully.'
-                )}>
+                disabled={!formData.reqAmount.trim() || !formData.reqReason.trim()}
+                onClick={() => {
+                  const amtErr = validateAmount(formData.reqAmount);
+                  const rsErr  = validateReason(formData.reqReason);
+                  if (amtErr || rsErr) { setErrors(prev => ({ ...prev, reqAmount: amtErr, reqReason: rsErr })); return; }
+                  handleAction(() => createRequest(formData.reqAmount, formData.reqReason), 'Emergency request submitted successfully.');
+                }}>
                 Submit Request
               </button>
             </div>

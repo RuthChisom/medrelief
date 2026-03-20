@@ -291,6 +291,13 @@ button { cursor: pointer; font-size: 0.875rem; border-radius: var(--radius); bor
 .tab-btn:hover:not(.active) { color: var(--text); }
 
 /* ── Error / Status ─────────────────────────────────────── */
+.field-error {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.78rem;
+  color: var(--red);
+}
+
 .error-box {
   background: var(--red-light);
   color: var(--red);
