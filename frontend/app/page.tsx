@@ -1,159 +1,260 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
+import Image from 'next/image';
 import { useMedRelief } from '../hooks/useMedRelief';
+import { useToast } from '../hooks/useToast';
+import ToastContainer from '../components/Toast';
+import { parseError } from '../lib/parseError';
 
 export default function Home() {
-  const { account, isConnected, connect, disconnect, deposit, createRequest, approveRequest, executeRequest, addValidator, removeValidator, checkIsAdmin, getContract } = useMedRelief();
-  
-  const [requests, setRequests] = useState<any[]>([]);
-  const [formData, setFormData] = useState({ deposit: "", reqAmount: "", reqReason: "", validatorAddress: "" });
-  const [error, setError] = useState<string | null>(null);
-  const [chainId, setChainId] = useState<string | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const {
+    account, isConnected, connect, disconnect,
+    deposit, createRequest, approveRequest, executeRequest,
+    addValidator, removeValidator, checkIsAdmin, checkIsValidator, getReadOnlyContract,
+  } = useMedRelief();
 
-  const checkNetwork = async () => {
-    if (window.ethereum) {
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const network = await provider.getNetwork();
-      setChainId(network.chainId.toString());
-    }
-  };
+  const { toasts, notify, dismiss } = useToast();
 
-  const handleAction = async (action: () => Promise<any>) => {
-    setError(null);
+  const [requests, setRequests]       = useState<any[]>([]);
+  const [activeTab, setActiveTab]     = useState<'pending' | 'executed'>('pending');
+  const [formData, setFormData]       = useState({ deposit: '', reqAmount: '', reqReason: '', validatorAddress: '' });
+  const [isAdmin, setIsAdmin]         = useState(false);
+  const [isValidator, setIsValidator] = useState(false);
+
+  const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setFormData(prev => ({ ...prev, [key]: e.target.value }));
+
+  // Central action runner — all contract calls go through here
+  const handleAction = async (action: () => Promise<any>, successMsg: string) => {
     try {
       await action();
-      alert("Success!");
+      notify('success', successMsg);
       fetchRequests();
     } catch (e: any) {
-      console.error(e);
-      setError(e.reason || e.message || "An error occurred");
+      notify('error', parseError(e));
     }
   };
 
   const fetchRequests = async () => {
     try {
-      const contract = await getContract();
+      const contract = await getReadOnlyContract();
       const count = await contract.requestCount();
       const list = [];
       for (let i = 0; i < Number(count); i++) {
-        const req = await contract.requests(i);
-        list.push({ id: i, requester: req[0], amount: req[1], reason: req[2], approvals: req[3], executed: req[4] });
+        const r = await contract.requests(i);
+        list.push({ id: i, requester: r[0], amount: r[1], reason: r[2], approvals: Number(r[3]), executed: r[4] });
       }
       setRequests(list);
-    } catch (e: any) { 
-      console.error("Fetch Error:", e);
-      checkNetwork();
+    } catch (e: any) {
+      console.error('Fetch error:', e);
     }
   };
 
-  useEffect(() => { 
+  useEffect(() => { fetchRequests(); }, []);
+
+  useEffect(() => {
     if (isConnected && account) {
-      fetchRequests();
-      checkNetwork();
       checkIsAdmin(account).then(setIsAdmin);
+      checkIsValidator(account).then(setIsValidator);
     } else {
-      setRequests([]);
       setIsAdmin(false);
+      setIsValidator(false);
     }
   }, [isConnected, account]);
 
+  const pending  = requests.filter(r => !r.executed);
+  const executed = requests.filter(r =>  r.executed);
+  const shown    = activeTab === 'pending' ? pending : executed;
+
   return (
-    <div style={{ padding: '2rem', fontFamily: 'sans-serif', maxWidth: '800px', margin: 'auto' }}>
-      <h1>🏥 MedRelief Dashboard</h1>
-      
-      <div style={{ background: '#f0f0f0', padding: '0.5rem', marginBottom: '1rem', borderRadius: '4px', fontSize: '0.8rem' }}>
-        <strong>Status:</strong> {isConnected ? "Connected" : "Disconnected"} | 
-        <strong> Chain ID:</strong> {chainId || "Unknown"} |
-        <strong> Role:</strong> {isAdmin ? "Admin" : "User"}
-      </div>
-
-      {error && (
-        <div style={{ background: '#ffeeee', color: '#cc0000', padding: '1rem', marginBottom: '1rem', border: '1px solid #ffcccc', borderRadius: '4px' }}>
-          <strong>Error:</strong> {error}
-        </div>
-      )}
-
-      {!isConnected ? (
-        <button onClick={connect} style={{ padding: '0.5rem 1rem', cursor: 'pointer' }}>Connect Wallet</button>
-      ) : (
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <p>Connected: <code>{account}</code></p>
-          <button onClick={disconnect} style={{ padding: '0.3rem 0.6rem', cursor: 'pointer', background: '#eee' }}>Disconnect</button>
-        </div>
-      )}
-
-      {/* Admin Panel */}
-      {isAdmin && (
-        <section style={{ background: '#f9f9ff', border: '1px solid #dddde', padding: '1rem', borderRadius: '8px', margin: '1rem 0' }}>
-          <h3>👑 Admin Panel: Manage Validators</h3>
-          <input 
-            placeholder="Address to Add/Remove" 
-            value={formData.validatorAddress}
-            onChange={e => setFormData({...formData, validatorAddress: e.target.value})} 
-            style={{ width: '60%', padding: '0.4rem', marginRight: '0.5rem' }}
-          />
-          <button onClick={() => handleAction(() => addValidator(formData.validatorAddress))} style={{ background: '#4CAF50', color: 'white', padding: '0.4rem 0.8rem' }}>Add</button>
-          <button onClick={() => handleAction(() => removeValidator(formData.validatorAddress))} style={{ background: '#ff4d4d', color: 'white', padding: '0.4rem 0.8rem', marginLeft: '0.5rem' }}>Remove</button>
-        </section>
-      )}
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '2rem' }}>
-        {/* Deposit Section */}
-        <section style={{ border: '1px solid #ddd', padding: '1rem', borderRadius: '8px' }}>
-          <h3>Deposit Funds</h3>
-          <input 
-            type="number" 
-            placeholder="ETH" 
-            value={formData.deposit}
-            onChange={e => setFormData({...formData, deposit: e.target.value})} 
-            style={{ width: '100%', padding: '0.4rem', marginBottom: '0.5rem' }}
-          />
-          <button onClick={() => handleAction(() => deposit(formData.deposit))} style={{ width: '100%', padding: '0.4rem' }}>Send ETH</button>
-        </section>
-
-        {/* Request Section */}
-        <section style={{ border: '1px solid #ddd', padding: '1rem', borderRadius: '8px' }}>
-          <h3>Create Request</h3>
-          <input 
-            type="number" 
-            placeholder="Amount (ETH)" 
-            value={formData.reqAmount}
-            onChange={e => setFormData({...formData, reqAmount: e.target.value})} 
-            style={{ width: '100%', padding: '0.4rem', marginBottom: '0.5rem' }}
-          />
-          <input 
-            placeholder="Reason" 
-            value={formData.reqReason}
-            onChange={e => setFormData({...formData, reqReason: e.target.value})} 
-            style={{ width: '100%', padding: '0.4rem', marginBottom: '0.5rem' }}
-          />
-          <button onClick={() => handleAction(() => createRequest(formData.reqAmount, formData.reqReason))} style={{ width: '100', padding: '0.4rem' }}>Request Funds</button>
-        </section>
-      </div>
-
-      <h2 style={{ marginTop: '2rem' }}>Emergency Requests</h2>
-      <button onClick={fetchRequests} style={{ marginBottom: '1rem', padding: '0.4rem 0.8rem' }}>🔄 Refresh</button>
-      
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        {requests.length === 0 && <p>No requests found or contract not connected.</p>}
-        {requests.map((req) => (
-          <div key={req.id} style={{ border: '1px solid #eee', padding: '1rem', borderRadius: '8px', background: req.executed ? '#f9f9f9' : '#fff', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-            <p><strong>#{req.id} - {req.reason}</strong></p>
-            <p>Amount: {ethers.formatEther(req.amount)} ETH | Approvals: {Number(req.approvals)}/2</p>
-            <p style={{ fontSize: '0.8rem', color: '#666' }}>By: {req.requester}</p>
-            
-            {!req.executed && (
-              <div style={{ marginTop: '0.5rem' }}>
-                <button onClick={() => handleAction(() => approveRequest(req.id))} style={{ marginRight: '0.5rem', padding: '0.4rem 0.8rem' }}>👍 Approve</button>
-                <button onClick={() => handleAction(() => executeRequest(req.id))} style={{ background: '#4CAF50', color: 'white', padding: '0.4rem 0.8rem', border: 'none', borderRadius: '4px' }}>🚀 Execute</button>
-              </div>
-            )}
-            {req.executed && <span style={{ color: 'green', fontWeight: 'bold' }}>✅ Successfully Funded</span>}
+    <>
+      {/* ── Header ─────────────────────────────────────────── */}
+      <header className="header">
+        <div className="header-inner">
+          <div className="header-brand">
+            <Image src="/assets/logo.png" alt="MedRelief" width={32} height={32} />
+            MedRelief
           </div>
-        ))}
-      </div>
-    </div>
+
+          <div className="wallet-info">
+            {!isConnected ? (
+              <button className="btn-connect" onClick={connect}>Connect Wallet</button>
+            ) : (
+              <>
+                <span className="wallet-address">
+                  {account?.slice(0, 6)}…{account?.slice(-4)}
+                </span>
+                <button className="btn-disconnect" onClick={disconnect}>Disconnect</button>
+              </>
+            )}
+          </div>
+        </div>
+      </header>
+
+      <main className="container">
+
+        {/* ── Hero ───────────────────────────────────────────── */}
+        <div className="hero">
+          <h2>Decentralized Emergency Medical Funding</h2>
+          <p>
+            Community members deposit ETH into a shared pool. Patients submit
+            funding requests for medical emergencies. Validators approve
+            disbursements transparently — no middlemen, no delays.
+          </p>
+        </div>
+
+        {/* ── Admin: Manage Validators ────────────────────────── */}
+        {isConnected && isAdmin && (
+          <div className="card">
+            <p className="card-title">👑 Manage Validators</p>
+            <div className="field-row">
+              <div className="field">
+                <label>Validator Address</label>
+                <input placeholder="0x…" value={formData.validatorAddress} onChange={set('validatorAddress')} />
+              </div>
+              <button className="btn-primary"
+                onClick={() => handleAction(
+                  () => addValidator(formData.validatorAddress),
+                  'Validator added successfully.'
+                )}>
+                Add
+              </button>
+              <button className="btn-danger"
+                onClick={() => handleAction(
+                  () => removeValidator(formData.validatorAddress),
+                  'Validator removed.'
+                )}>
+                Remove
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Deposit + Create Request ────────────────────────── */}
+        {isConnected && (
+          <div className="grid-2">
+
+            {/* Deposit */}
+            <div className="card">
+              <p className="card-title">Deposit Funds</p>
+              <div className="field">
+                <label>Amount (ETH)</label>
+                <input type="number" placeholder="0.0" value={formData.deposit} onChange={set('deposit')} />
+              </div>
+              <button className="btn-primary" style={{ width: '100%' }}
+                onClick={() => handleAction(
+                  () => deposit(formData.deposit),
+                  `Successfully deposited ${formData.deposit} ETH.`
+                )}>
+                Send ETH
+              </button>
+            </div>
+
+            {/* Create Request */}
+            <div className="card">
+              <p className="card-title">Create Request</p>
+              <div className="field">
+                <label>Amount (ETH)</label>
+                <input type="number" placeholder="0.0" value={formData.reqAmount} onChange={set('reqAmount')} />
+              </div>
+              <div className="field">
+                <label>Reason</label>
+                <input placeholder="Brief description" value={formData.reqReason} onChange={set('reqReason')} />
+              </div>
+              <button className="btn-secondary" style={{ width: '100%' }}
+                onClick={() => handleAction(
+                  () => createRequest(formData.reqAmount, formData.reqReason),
+                  'Emergency request submitted successfully.'
+                )}>
+                Submit Request
+              </button>
+            </div>
+
+          </div>
+        )}
+
+        {/* ── Emergency Requests ──────────────────────────────── */}
+        <div className="card">
+          <div className="section-header">
+            <h2>Emergency Requests</h2>
+            <button className="btn-ghost btn-sm" onClick={fetchRequests}>↻ Refresh</button>
+          </div>
+
+          {/* Tabs */}
+          <div className="requests-tabs">
+            <button
+              className={`tab-btn ${activeTab === 'pending' ? 'active' : ''}`}
+              onClick={() => setActiveTab('pending')}
+            >
+              Pending <span style={{ fontSize: '0.75rem', marginLeft: '4px' }}>({pending.length})</span>
+            </button>
+            <button
+              className={`tab-btn ${activeTab === 'executed' ? 'active' : ''}`}
+              onClick={() => setActiveTab('executed')}
+            >
+              Executed <span style={{ fontSize: '0.75rem', marginLeft: '4px' }}>({executed.length})</span>
+            </button>
+          </div>
+
+          {/* Request list */}
+          {shown.length === 0 ? (
+            <div className="empty-state">
+              {activeTab === 'pending' ? 'No pending requests.' : 'No executed requests yet.'}
+            </div>
+          ) : (
+            shown.map(req => (
+              <div key={req.id} className={`request-card ${req.executed ? 'executed' : ''}`}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <span className="request-id">Request #{req.id}</span>
+                  <span className={`badge ${req.executed ? 'badge-executed' : 'badge-pending'}`}>
+                    {req.executed ? 'Funded' : 'Pending'}
+                  </span>
+                </div>
+
+                <p className="request-reason">{req.reason}</p>
+
+                <p className="request-meta">
+                  {ethers.formatEther(req.amount)} ETH &nbsp;·&nbsp;
+                  {req.approvals}/2 approvals &nbsp;·&nbsp;
+                  <span style={{ fontFamily: 'monospace' }}>{req.requester.slice(0, 8)}…</span>
+                </p>
+
+                {!req.executed && (
+                  <div className="approvals-bar">
+                    <div className="approvals-fill" style={{ width: `${(req.approvals / 2) * 100}%` }} />
+                  </div>
+                )}
+
+                {isConnected && !req.executed && (
+                  <div className="request-actions">
+                    {isValidator && (
+                      <button className="btn-ghost btn-sm"
+                        onClick={() => handleAction(
+                          () => approveRequest(req.id),
+                          `Request #${req.id} approved.`
+                        )}>
+                        👍 Approve
+                      </button>
+                    )}
+                    <button className="btn-primary btn-sm"
+                      onClick={() => handleAction(
+                        () => executeRequest(req.id),
+                        `Request #${req.id} funded successfully.`
+                      )}>
+                      🚀 Execute
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+
+      </main>
+
+      {/* ── Toast notifications (fixed, bottom-right) ────────── */}
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
+    </>
   );
 }
