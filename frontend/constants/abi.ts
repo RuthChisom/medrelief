@@ -6,12 +6,12 @@ export const MED_RELIEF_ABI = [
   "function addValidator(address validator) external",
   "function removeValidator(address validator) external",
   "function requestCount() external view returns (uint256)",
-  "function requests(uint256 requestId) external view returns (address requester, uint256 amount, string memory reason, uint256 approvalCount, bool executed)",
+  "function requests(uint256 requestId) external view returns (address requester, uint256 amount, string memory reason, uint256 approvalCount, uint256 deadline, bool executed, uint8 priority)",
   "function hasRole(bytes32 role, address account) external view returns (bool)",
   "function DEFAULT_ADMIN_ROLE() external view returns (bytes32)",
   "function VALIDATOR_ROLE() external view returns (bytes32)",
   "event Deposit(address indexed user, uint256 amount)",
-  "event RequestCreated(uint256 indexed requestId, address indexed requester, uint256 amount, string reason)",
+  "event RequestCreated(uint256 indexed requestId, address indexed requester, uint256 amount, string reason, uint8 priority)",
   "event RoleGranted(bytes32 indexed role, address indexed account, address indexed sender)",
   "event RoleRevoked(bytes32 indexed role, address indexed account, address indexed sender)"
 ];

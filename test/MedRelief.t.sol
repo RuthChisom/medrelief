@@ -36,12 +36,14 @@ contract MedReliefTest is Test {
         vm.prank(requester);
         medRelief.createRequest(1 ether, "Emergency surgery");
 
-        (address reqAddress, uint256 amount, string memory reason, uint256 approvals, bool executed) = medRelief.requests(0);
+        (address reqAddress, uint256 amount, string memory reason, uint256 approvals, uint256 deadline, bool executed, MedRelief.Priority priority) = medRelief.requests(0);
         assertEq(reqAddress, requester);
         assertEq(amount, 1 ether);
         assertEq(reason, "Emergency surgery");
         assertEq(approvals, 0);
+        assertEq(deadline, block.timestamp + 3 days);
         assertEq(executed, false);
+        assertEq(uint(priority), uint(MedRelief.Priority.HIGH));
     }
 
     function test_ApproveAndExecuteRequest() public {
@@ -63,7 +65,7 @@ contract MedReliefTest is Test {
         medRelief.executeRequest(0);
 
         assertEq(requester.balance, requesterBalanceBefore + 1 ether);
-        (, , , , bool executed) = medRelief.requests(0);
+        (, , , , , bool executed, ) = medRelief.requests(0);
         assertTrue(executed);
     }
 
